@@ -1,0 +1,51 @@
+name: carbon_lens
+description: "CarbonLens - Personal carbon footprint tracker"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+
+  # State Management
+  flutter_riverpod: ^2.6.1
+  riverpod_annotation: ^2.6.1
+
+  # Navigation
+  go_router: ^14.8.1
+
+  # Typography
+  google_fonts: ^6.2.1
+
+  # Charts
+  fl_chart: ^0.70.2
+
+  # Local Storage
+  shared_preferences: ^2.5.3
+
+  # Utilities
+  uuid: ^4.5.1
+  intl: ^0.20.2
+
+  # UI Components
+  flutter_svg: ^2.0.17
+  percent_indicator: ^4.2.5
+  flutter_animate: ^4.5.2
+  shimmer: ^3.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/icons/
+    - assets/images/
