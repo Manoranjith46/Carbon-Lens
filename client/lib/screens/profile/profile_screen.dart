@@ -4,6 +4,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'dart:ui';
 import '../../providers/providers.dart';
 import '../../theme/carbon_colors.dart';
+import '../../widgets/shared_widgets.dart';
 import '../../widgets/premium_cards.dart';
 
 class ProfileScreen extends ConsumerWidget {
@@ -438,13 +439,7 @@ class ProfileScreen extends ConsumerWidget {
   }
 
   void _showComingSoon(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('Coming soon!'),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
+    showComingSoonPopup(context);
   }
 
   void _showDeleteConfirm(BuildContext context, WidgetRef ref) {
@@ -464,13 +459,7 @@ class ProfileScreen extends ConsumerWidget {
           FilledButton(
             onPressed: () {
               Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: const Text('Data deletion — coming in next release'),
-                  behavior: SnackBarBehavior.floating,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              );
+              showComingSoonPopup(context);
             },
             style: FilledButton.styleFrom(
               backgroundColor: Theme.of(context).colorScheme.error,

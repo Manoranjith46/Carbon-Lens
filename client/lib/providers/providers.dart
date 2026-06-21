@@ -1,9 +1,13 @@
+import 'dart:convert';
+import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../data/models/models.dart';
 import '../data/mock/mock_data.dart';
 import '../theme/carbon_status.dart';
+import '../config/api_config.dart';
 
 // ═══════════════════════════════════════════════════════
 // ANONYMOUS AUTH PROVIDER
@@ -40,6 +44,19 @@ class ProfileNotifier extends StateNotifier<UserProfile?> {
   ProfileNotifier() : super(null);
 
   Future<void> initialize(String userId) async {
+    try {
+      final response = await http.get(Uri.parse('${ApiConfig.baseUrl}/api/profile/$userId'));
+      if (response.statusCode == 200) {
+        final body = json.decode(response.body);
+        if (body['success'] == true && body['data'] != null) {
+          state = UserProfile.fromJson(body['data'] as Map<String, dynamic>);
+          return;
+        }
+      }
+    } catch (e) {
+      debugPrint("Error initializing profile from backend: $e");
+    }
+
     final prefs = await SharedPreferences.getInstance();
     final completed = prefs.getBool('onboarding_completed') ?? false;
     if (completed) {
@@ -51,8 +68,7 @@ class ProfileNotifier extends StateNotifier<UserProfile?> {
         householdType: prefs.getString('household_type'),
         consumptionPattern: prefs.getString('consumption_pattern'),
         onboardingCompleted: true,
-        weeklyBaselineKgCo2e:
-            prefs.getDouble('weekly_baseline') ?? 50.0,
+        weeklyBaselineKgCo2e: prefs.getDouble('weekly_baseline') ?? 50.0,
         weeklyLimitKgCo2e: prefs.getDouble('weekly_limit') ?? 50.0,
         createdAt: DateTime.now(),
       );
@@ -73,7 +89,7 @@ class ProfileNotifier extends StateNotifier<UserProfile?> {
       consumptionPattern: consumptionPattern,
     );
 
-    final profile = UserProfile(
+    final localProfile = UserProfile(
       userId: userId,
       regionCode: 'IN',
       travelPattern: travelPattern,
@@ -82,21 +98,49 @@ class ProfileNotifier extends StateNotifier<UserProfile?> {
       consumptionPattern: consumptionPattern,
       onboardingCompleted: true,
       weeklyBaselineKgCo2e: baseline,
-      weeklyLimitKgCo2e: baseline * 0.9, // Target 10% reduction
+      weeklyLimitKgCo2e: baseline * 0.9,
       createdAt: DateTime.now(),
     );
 
-    state = profile;
+    try {
+      final response = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}/api/profile/$userId/onboarding'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'travelPattern': travelPattern,
+          'dietPattern': dietPattern,
+          'householdType': householdType,
+          'consumptionPattern': consumptionPattern,
+          'regionCode': 'IN',
+          'householdSize': 1,
+        }),
+      );
 
-    // Persist
+      if (response.statusCode == 200) {
+        final body = json.decode(response.body);
+        if (body['success'] == true && body['data'] != null) {
+          state = UserProfile.fromJson(body['data'] as Map<String, dynamic>);
+          await _saveLocal(state!);
+          return;
+        }
+      }
+    } catch (e) {
+      debugPrint("Error completing onboarding on backend: $e");
+    }
+
+    state = localProfile;
+    await _saveLocal(localProfile);
+  }
+
+  Future<void> _saveLocal(UserProfile profile) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('onboarding_completed', true);
-    await prefs.setString('travel_pattern', travelPattern);
-    await prefs.setString('diet_pattern', dietPattern);
-    await prefs.setString('household_type', householdType);
-    await prefs.setString('consumption_pattern', consumptionPattern);
-    await prefs.setDouble('weekly_baseline', baseline);
-    await prefs.setDouble('weekly_limit', baseline * 0.9);
+    await prefs.setString('travel_pattern', profile.travelPattern ?? '');
+    await prefs.setString('diet_pattern', profile.dietPattern ?? '');
+    await prefs.setString('household_type', profile.householdType ?? '');
+    await prefs.setString('consumption_pattern', profile.consumptionPattern ?? '');
+    await prefs.setDouble('weekly_baseline', profile.weeklyBaselineKgCo2e);
+    await prefs.setDouble('weekly_limit', profile.weeklyLimitKgCo2e ?? (profile.weeklyBaselineKgCo2e * 0.9));
   }
 }
 
@@ -112,29 +156,102 @@ final activityProvider =
 class ActivityNotifier extends StateNotifier<List<Activity>> {
   ActivityNotifier() : super([]);
 
-  void addActivity(Activity activity) {
-    // Calculate CO2
+  String? _userId;
+
+  Future<void> initialize(String userId) async {
+    _userId = userId;
+    try {
+      final response = await http.get(Uri.parse('${ApiConfig.baseUrl}/api/activities/$userId'));
+      if (response.statusCode == 200) {
+        final body = json.decode(response.body);
+        if (body['success'] == true && body['data'] != null) {
+          state = (body['data'] as List)
+              .map((json) => Activity.fromJson(json as Map<String, dynamic>))
+              .toList();
+          return;
+        }
+      }
+    } catch (e) {
+      debugPrint("Error fetching activities from backend: $e");
+    }
+  }
+
+  Future<void> addActivity(Activity activity) async {
+    if (_userId == null) return;
+
     final kgCo2e = MockEmissionFactors.calculate(
       activity.category,
       activity.activityType,
       activity.quantity,
     );
-    state = [
-      ...state,
-      activity.copyWith(
-        calculatedKgCo2e: kgCo2e,
-        lowerEstimate: kgCo2e * 0.8,
-        upperEstimate: kgCo2e * 1.2,
-      ),
-    ];
+    final tempActivity = activity.copyWith(
+      calculatedKgCo2e: kgCo2e,
+      lowerEstimate: kgCo2e * 0.8,
+      upperEstimate: kgCo2e * 1.2,
+    );
+
+    state = [...state, tempActivity];
+
+    try {
+      final response = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}/api/activities'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          ...activity.toJson(),
+          'userId': _userId,
+        }),
+      );
+
+      if (response.statusCode == 201) {
+        final body = json.decode(response.body);
+        if (body['success'] == true && body['data'] != null) {
+          final saved = Activity.fromJson(body['data'] as Map<String, dynamic>);
+          state = state.map((a) => a.id == activity.id || a.id == '' ? saved : a).toList();
+          return;
+        }
+      }
+    } catch (e) {
+      debugPrint("Error adding activity to backend: $e");
+    }
   }
 
-  void removeActivity(String id) {
+  Future<void> removeActivity(String id) async {
+    final previousState = state;
     state = state.where((a) => a.id != id).toList();
+
+    try {
+      final response = await http.delete(Uri.parse('${ApiConfig.baseUrl}/api/activities/$id'));
+      if (response.statusCode == 200) {
+        return;
+      }
+    } catch (e) {
+      debugPrint("Error removing activity from backend: $e");
+    }
+    state = previousState;
   }
 
-  void updateActivity(Activity updated) {
+  Future<void> updateActivity(Activity updated) async {
+    final previousState = state;
     state = state.map((a) => a.id == updated.id ? updated : a).toList();
+
+    try {
+      final response = await http.put(
+        Uri.parse('${ApiConfig.baseUrl}/api/activities/${updated.id}'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode(updated.toJson()),
+      );
+      if (response.statusCode == 200) {
+        final body = json.decode(response.body);
+        if (body['success'] == true && body['data'] != null) {
+          final saved = Activity.fromJson(body['data'] as Map<String, dynamic>);
+          state = state.map((a) => a.id == updated.id ? saved : a).toList();
+          return;
+        }
+      }
+    } catch (e) {
+      debugPrint("Error updating activity on backend: $e");
+    }
+    state = previousState;
   }
 
   List<Activity> getForDate(DateTime date) {
@@ -150,7 +267,7 @@ class ActivityNotifier extends StateNotifier<List<Activity>> {
     final weekEnd = weekStart.add(const Duration(days: 7));
     return state
         .where((a) =>
-            a.activityTime.isAfter(weekStart) &&
+            a.activityTime.isAfter(weekStart.subtract(const Duration(seconds: 1))) &&
             a.activityTime.isBefore(weekEnd))
         .toList();
   }
@@ -243,14 +360,31 @@ final carbonStatusProvider = Provider<CarbonStatus>((ref) {
 // RECOMMENDATION PROVIDER
 // ═══════════════════════════════════════════════════════
 
-final recommendationProvider = Provider<List<Recommendation>>((ref) {
-  final profile = ref.watch(profileProvider);
-  if (profile == null) return [];
-  return MockRecommendations.getForProfile(
-    travelPattern: profile.travelPattern ?? 'combination',
-    dietPattern: profile.dietPattern ?? 'mixed',
-  );
+final recommendationProvider =
+    StateNotifierProvider<RecommendationNotifier, List<Recommendation>>((ref) {
+  return RecommendationNotifier();
 });
+
+class RecommendationNotifier extends StateNotifier<List<Recommendation>> {
+  RecommendationNotifier() : super([]);
+
+  Future<void> initialize(String userId) async {
+    try {
+      final response = await http.get(Uri.parse('${ApiConfig.baseUrl}/api/recommendations/$userId'));
+      if (response.statusCode == 200) {
+        final body = json.decode(response.body);
+        if (body['success'] == true && body['data'] != null) {
+          state = (body['data'] as List)
+              .map((json) => Recommendation.fromJson(json as Map<String, dynamic>))
+              .toList();
+          return;
+        }
+      }
+    } catch (e) {
+      debugPrint("Error fetching recommendations from backend: $e");
+    }
+  }
+}
 
 // ═══════════════════════════════════════════════════════
 // GOAL PROVIDER
@@ -264,16 +398,91 @@ final goalProvider =
 class GoalNotifier extends StateNotifier<List<Goal>> {
   GoalNotifier() : super([]);
 
-  void addGoal(Goal goal) {
+  String? _userId;
+
+  Future<void> initialize(String userId) async {
+    _userId = userId;
+    try {
+      final response = await http.get(Uri.parse('${ApiConfig.baseUrl}/api/goals/$userId'));
+      if (response.statusCode == 200) {
+        final body = json.decode(response.body);
+        if (body['success'] == true && body['data'] != null) {
+          state = (body['data'] as List)
+              .map((json) => Goal.fromJson(json as Map<String, dynamic>))
+              .toList();
+          return;
+        }
+      }
+    } catch (e) {
+      debugPrint("Error fetching goals from backend: $e");
+    }
+  }
+
+  Future<void> addGoal(Goal goal) async {
+    if (_userId == null) return;
+
     state = [...state, goal];
+
+    try {
+      final response = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}/api/goals'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          ...goal.toJson(),
+          'userId': _userId,
+        }),
+      );
+
+      if (response.statusCode == 201) {
+        final body = json.decode(response.body);
+        if (body['success'] == true && body['data'] != null) {
+          final saved = Goal.fromJson(body['data'] as Map<String, dynamic>);
+          state = state.map((g) => g.id == goal.id || g.id == '' ? saved : g).toList();
+          return;
+        }
+      }
+    } catch (e) {
+      debugPrint("Error adding goal to backend: $e");
+    }
   }
 
-  void updateGoal(Goal updated) {
+  Future<void> updateGoal(Goal updated) async {
+    final previousState = state;
     state = state.map((g) => g.id == updated.id ? updated : g).toList();
+
+    try {
+      final response = await http.put(
+        Uri.parse('${ApiConfig.baseUrl}/api/goals/${updated.id}'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode(updated.toJson()),
+      );
+      if (response.statusCode == 200) {
+        final body = json.decode(response.body);
+        if (body['success'] == true && body['data'] != null) {
+          final saved = Goal.fromJson(body['data'] as Map<String, dynamic>);
+          state = state.map((g) => g.id == updated.id ? saved : g).toList();
+          return;
+        }
+      }
+    } catch (e) {
+      debugPrint("Error updating goal on backend: $e");
+    }
+    state = previousState;
   }
 
-  void removeGoal(String id) {
+  Future<void> removeGoal(String id) async {
+    final previousState = state;
     state = state.where((g) => g.id != id).toList();
+
+    try {
+      final response = await http.delete(Uri.parse('${ApiConfig.baseUrl}/api/goals/$id'));
+      if (response.statusCode == 200) {
+        return;
+      }
+    } catch (e) {
+      debugPrint("Error removing goal from backend: $e");
+    }
+    state = previousState;
   }
 }
 

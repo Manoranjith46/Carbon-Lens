@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:go_router/go_router.dart';
 import 'package:percent_indicator/circular_percent_indicator.dart';
 import 'dart:ui';
 import '../../data/models/models.dart';
@@ -72,7 +73,7 @@ class DashboardScreen extends ConsumerWidget {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: IconButton(
-                  onPressed: () {},
+                  onPressed: () => showComingSoonPopup(context),
                   icon: Icon(Icons.notifications_outlined, color: theme.colorScheme.primary),
                 ),
               ),
@@ -188,7 +189,7 @@ class DashboardScreen extends ConsumerWidget {
                       title: 'Start tracking',
                       subtitle: 'Add your usual commute to create your first daily estimate.',
                       actionLabel: 'Log your first activity',
-                      onAction: () {},
+                      onAction: () => context.go('/track'),
                     ),
                   ),
 
@@ -572,7 +573,7 @@ class _PremiumSuggestionCard extends StatelessWidget {
             children: [
               Expanded(
                 child: FilledButton(
-                  onPressed: () {},
+                  onPressed: () => showComingSoonPopup(context),
                   style: FilledButton.styleFrom(
                     backgroundColor: accentColor,
                     foregroundColor: Colors.black,
@@ -586,7 +587,7 @@ class _PremiumSuggestionCard extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               OutlinedButton(
-                onPressed: () {},
+                onPressed: () => showComingSoonPopup(context),
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                   side: BorderSide(color: accentColor.withValues(alpha: 0.3)),

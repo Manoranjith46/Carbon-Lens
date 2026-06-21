@@ -98,6 +98,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
     if (userId != null) {
       await ref.read(profileProvider.notifier).initialize(userId);
+      await ref.read(activityProvider.notifier).initialize(userId);
+      await ref.read(goalProvider.notifier).initialize(userId);
+      await ref.read(recommendationProvider.notifier).initialize(userId);
     }
 
     // Total splash duration: 3 seconds

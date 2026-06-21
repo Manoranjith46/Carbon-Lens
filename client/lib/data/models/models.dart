@@ -149,6 +149,43 @@ class Activity {
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
+
+  factory Activity.fromJson(Map<String, dynamic> json) {
+    return Activity(
+      id: json['id'] as String? ?? '',
+      category: ActivityCategory.values.byName(json['category'] as String),
+      activityType: json['activityType'] as String,
+      quantity: (json['quantity'] as num).toDouble(),
+      unit: json['unit'] as String,
+      activityTime: DateTime.parse(json['activityTime'] as String),
+      sourceType: SourceType.values.byName(json['sourceType'] as String? ?? 'manual'),
+      confidenceLevel: ConfidenceLevel.values.byName(json['confidenceLevel'] as String? ?? 'confirmed'),
+      calculatedKgCo2e: json['calculatedKgCo2e'] != null ? (json['calculatedKgCo2e'] as num).toDouble() : null,
+      lowerEstimate: json['lowerEstimate'] != null ? (json['lowerEstimate'] as num).toDouble() : null,
+      upperEstimate: json['upperEstimate'] != null ? (json['upperEstimate'] as num).toDouble() : null,
+      metadata: json['metadata'] as Map<String, dynamic>?,
+      createdAt: json['createdAt'] != null ? DateTime.parse(json['createdAt'] as String) : DateTime.now(),
+      updatedAt: json['updatedAt'] != null ? DateTime.parse(json['updatedAt'] as String) : DateTime.now(),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'category': category.name,
+      'activityType': activityType,
+      'quantity': quantity,
+      'unit': unit,
+      'activityTime': activityTime.toIso8601String(),
+      'sourceType': sourceType.name,
+      'confidenceLevel': confidenceLevel.name,
+      if (calculatedKgCo2e != null) 'calculatedKgCo2e': calculatedKgCo2e,
+      if (lowerEstimate != null) 'lowerEstimate': lowerEstimate,
+      if (upperEstimate != null) 'upperEstimate': upperEstimate,
+      if (metadata != null) 'metadata': metadata,
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt.toIso8601String(),
+    };
+  }
 }
 
 /// A saved routine for quick logging.
@@ -166,6 +203,42 @@ class Routine {
     this.daysOfWeek = const [],
     required this.createdAt,
   });
+
+  factory Routine.fromJson(Map<String, dynamic> json) {
+    return Routine(
+      id: json['id'] as String? ?? '',
+      name: json['name'] as String,
+      activities: (json['activities'] as List<dynamic>?)?.map((actJson) {
+        final map = actJson as Map<String, dynamic>;
+        return Activity(
+          id: '',
+          category: ActivityCategory.values.byName(map['category'] as String),
+          activityType: map['activityType'] as String,
+          quantity: (map['quantity'] as num).toDouble(),
+          unit: map['unit'] as String,
+          activityTime: DateTime.now(),
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        );
+      }).toList() ?? [],
+      daysOfWeek: List<int>.from(json['daysOfWeek'] ?? []),
+      createdAt: json['createdAt'] != null ? DateTime.parse(json['createdAt'] as String) : DateTime.now(),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'name': name,
+      'activities': activities.map((act) => {
+        'category': act.category.name,
+        'activityType': act.activityType,
+        'quantity': act.quantity,
+        'unit': act.unit,
+      }).toList(),
+      'daysOfWeek': daysOfWeek,
+      'createdAt': createdAt.toIso8601String(),
+    };
+  }
 }
 
 /// User's personal goal.
@@ -220,6 +293,37 @@ class Goal {
       status: status ?? this.status,
       createdAt: createdAt,
     );
+  }
+
+  factory Goal.fromJson(Map<String, dynamic> json) {
+    return Goal(
+      id: json['id'] as String? ?? '',
+      title: json['title'] as String,
+      goalType: GoalType.values.byName(json['goalType'] as String),
+      category: json['category'] != null ? ActivityCategory.values.byName(json['category'] as String) : null,
+      targetValue: (json['targetValue'] as num).toDouble(),
+      baselineValue: (json['baselineValue'] as num).toDouble(),
+      progressValue: (json['progressValue'] as num? ?? 0.0).toDouble(),
+      startDate: DateTime.parse(json['startDate'] as String),
+      endDate: DateTime.parse(json['endDate'] as String),
+      status: GoalStatus.values.byName(json['status'] as String? ?? 'active'),
+      createdAt: json['createdAt'] != null ? DateTime.parse(json['createdAt'] as String) : DateTime.now(),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'title': title,
+      'goalType': goalType.name,
+      if (category != null) 'category': category!.name,
+      'targetValue': targetValue,
+      'baselineValue': baselineValue,
+      'progressValue': progressValue,
+      'startDate': startDate.toIso8601String(),
+      'endDate': endDate.toIso8601String(),
+      'status': status.name,
+      'createdAt': createdAt.toIso8601String(),
+    };
   }
 }
 
@@ -280,6 +384,38 @@ class UserProfile {
       createdAt: createdAt,
     );
   }
+
+  factory UserProfile.fromJson(Map<String, dynamic> json) {
+    return UserProfile(
+      userId: json['userId'] as String,
+      regionCode: json['regionCode'] as String?,
+      dietPattern: json['dietPattern'] as String?,
+      travelPattern: json['travelPattern'] as String?,
+      householdType: json['householdType'] as String?,
+      householdSize: json['householdSize'] as int?,
+      consumptionPattern: json['consumptionPattern'] as String?,
+      onboardingCompleted: json['onboardingCompleted'] as bool? ?? false,
+      weeklyBaselineKgCo2e: (json['weeklyBaselineKgCo2e'] as num? ?? 0.0).toDouble(),
+      weeklyLimitKgCo2e: json['weeklyLimitKgCo2e'] != null ? (json['weeklyLimitKgCo2e'] as num).toDouble() : null,
+      createdAt: json['createdAt'] != null ? DateTime.parse(json['createdAt'] as String) : DateTime.now(),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'userId': userId,
+      if (regionCode != null) 'regionCode': regionCode,
+      if (dietPattern != null) 'dietPattern': dietPattern,
+      if (travelPattern != null) 'travelPattern': travelPattern,
+      if (householdType != null) 'householdType': householdType,
+      if (householdSize != null) 'householdSize': householdSize,
+      if (consumptionPattern != null) 'consumptionPattern': consumptionPattern,
+      'onboardingCompleted': onboardingCompleted,
+      'weeklyBaselineKgCo2e': weeklyBaselineKgCo2e,
+      if (weeklyLimitKgCo2e != null) 'weeklyLimitKgCo2e': weeklyLimitKgCo2e,
+      'createdAt': createdAt.toIso8601String(),
+    };
+  }
 }
 
 /// A recommendation for the user.
@@ -305,4 +441,32 @@ class Recommendation {
     required this.effortLevel,
     this.alternativeAction,
   });
+
+  factory Recommendation.fromJson(Map<String, dynamic> json) {
+    return Recommendation(
+      id: json['id'] as String? ?? '',
+      title: json['title'] as String,
+      description: json['description'] as String,
+      reason: json['reason'] as String,
+      category: ActivityCategory.values.byName(json['category'] as String),
+      estimatedReductionKgCo2e: (json['estimatedReductionKgCo2e'] as num).toDouble(),
+      costLevel: json['costLevel'] as String,
+      effortLevel: json['effortLevel'] as String,
+      alternativeAction: json['alternativeAction'] as String?,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'title': title,
+      'description': description,
+      'reason': reason,
+      'category': category.name,
+      'estimatedReductionKgCo2e': estimatedReductionKgCo2e,
+      'costLevel': costLevel,
+      'effortLevel': effortLevel,
+      if (alternativeAction != null) 'alternativeAction': alternativeAction,
+    };
+  }
 }
